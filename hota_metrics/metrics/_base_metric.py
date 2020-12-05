@@ -115,7 +115,7 @@ class _BaseMetric(ABC):
         # Get detailed headers
         detailed_headers = self.float_headers + self.integer_headers
         for h in self.float_set_headers + self.integer_set_headers:
-            for alpha in [int(100*x) for x in self.set_keys]:
+            for alpha in [int(round(100 * x)) for x in self.set_keys]:
                 detailed_headers.append(h + '___' + str(alpha))
             detailed_headers.append(h + '___AUC')
 
@@ -132,7 +132,7 @@ class _BaseMetric(ABC):
         for h in self.float_headers + self.integer_headers:
             detailed_row.append(res[h])
         for h in self.float_set_headers + self.integer_set_headers:
-            for i, alpha in enumerate([int(100 * x) for x in self.set_keys]):
+            for i, alpha in enumerate([int(round(100 * x)) for x in self.set_keys]):
                 detailed_row.append(res[h][i])
             detailed_row.append(np.mean(res[h]))
         return detailed_row
