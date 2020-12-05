@@ -169,6 +169,15 @@ class MotChallenge2DBox(_BaseDataset):
             if is_gt:
                 raw_data['gt_crowd_ignore_regions'][t] = np.empty((0, 4))
 
+            # Exclude predictions belonging to other classes.
+            if not is_gt:
+                # Accept -1, 0, 1, nan as pedestrian.
+                is_pedestrian = ~(raw_data['classes'][t] > 1)
+                if not np.all(is_pedestrian):
+                    # TODO: Should we print a warning or even raise an exception here?
+                    for k in data_keys:
+                        raw_data[k][t] = raw_data[k][t][is_pedestrian]
+
         if is_gt:
             key_map = {'ids': 'gt_ids',
                        'classes': 'gt_classes',
