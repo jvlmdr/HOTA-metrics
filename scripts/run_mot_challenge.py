@@ -76,7 +76,7 @@ metrics_config = {k: v for k, v in config.items() if k in default_metrics_config
 evaluator = hm.Evaluator(eval_config)
 dataset_list = [hm.datasets.MotChallenge2DBox(dataset_config)]
 metrics_list = []
-for metric in [hm.metrics.Hota, hm.metrics.Clear, hm.metrics.ID, hm.metrics.Count]:
+for metric in [hm.metrics.Hota, hm.metrics.Clear, hm.metrics.ID, hm.metrics.Count, hm.metrics.VACE]:
     if metric.get_name() in metrics_config['METRICS']:
         metrics_list.append(metric())
 if len(metrics_list) == 0:
