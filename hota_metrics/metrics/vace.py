@@ -18,14 +18,14 @@ class VACE(_BaseMetric):
 
     def __init__(self):
         super().__init__()
-        self.integer_headers = ['VACE_IDs', 'VACE_GT_IDs']
-        self.float_headers = ['STDA', 'ATA', 'ATA_Re', 'ATA_Pr']
+        self.integer_headers = ['VACE_IDs', 'VACE_GT_IDs', 'VACE_non_empty']
+        self.float_headers = ['STDA', 'ATA', 'FDA', 'SFDA']
         self.headers = self.integer_headers + self.float_headers
-        self.summary_headers = ['ATA', 'ATA_Re', 'ATA_Pr']
+        self.summary_headers = ['ATA']
         self.register_headers_globally()
 
         # Fields that are accumulated over multiple videos.
-        self._additive_headers = self.integer_headers + ['STDA']
+        self._additive_headers = self.integer_headers + ['STDA', 'FDA']
 
         self.threshold = 0.5
 
@@ -42,6 +42,7 @@ class VACE(_BaseMetric):
         """
         res = {}
 
+        # Obtain Average Tracking Accuracy (ATA) using track correspondence.
         # Obtain counts necessary to compute temporal IOU.
         # Assume that integer counts can be represented exactly as floats.
         potential_matches_count = np.zeros((data['num_gt_ids'], data['num_tracker_ids']))
@@ -62,14 +63,32 @@ class VACE(_BaseMetric):
         # The denominator should always be non-zero if all tracks are non-empty.
         with np.errstate(divide='raise', invalid='raise'):
             temporal_iou = potential_matches_count / union_count
-
         # Find assignment that maximizes temporal IOU.
         match_rows, match_cols = linear_sum_assignment(-temporal_iou)
-
-        # Accumulate basic statistics
         res['STDA'] = temporal_iou[match_rows, match_cols].sum()
         res['VACE_IDs'] = data['num_tracker_ids']
         res['VACE_GT_IDs'] = data['num_gt_ids']
+
+        # Obtain Frame Detection Accuracy (FDA) using per-frame correspondence.
+        non_empty_count = 0
+        fda = 0
+        for t, (gt_ids_t, tracker_ids_t) in enumerate(zip(data['gt_ids'], data['tracker_ids'])):
+            n_g = len(gt_ids_t)
+            n_d = len(tracker_ids_t)
+            if not (n_g or n_d):
+                continue
+            # n_g > 0 or n_d > 0
+            non_empty_count += 1
+            if not (n_g and n_d):
+                continue
+            # n_g > 0 and n_d > 0
+            spatial_overlap = data['similarity_scores'][t]
+            match_rows, match_cols = linear_sum_assignment(-spatial_overlap)
+            overlap_ratio = spatial_overlap[match_rows, match_cols].sum()
+            fda += overlap_ratio / (0.5 * (n_g + n_d))
+        res['FDA'] = fda
+        res['VACE_non_empty'] = non_empty_count
+
         res.update(_compute_final_fields(res))
         return res
 
@@ -84,7 +103,9 @@ class VACE(_BaseMetric):
 
 def _compute_final_fields(additive):
     final = {}
-    final['ATA_Pr'] = additive['STDA'] / additive['VACE_IDs']
-    final['ATA_Re'] = additive['STDA'] / additive['VACE_GT_IDs']
-    final['ATA'] = 2 / (1 / final['ATA_Re'] + 1 / final['ATA_Pr'])
+    with np.errstate(invalid='ignore'):  # Permit nan results.
+        final['ATA'] = np.true_divide(additive['STDA'],
+                                      0.5 * (additive['VACE_IDs'] + additive['VACE_GT_IDs']))
+        final['SFDA'] = np.true_divide(additive['FDA'],
+                                       additive['VACE_non_empty'])
     return final
