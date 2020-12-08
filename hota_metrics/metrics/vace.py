@@ -21,9 +21,11 @@ class VACE(_BaseMetric):
         self.integer_headers = ['VACE_IDs', 'VACE_GT_IDs']
         self.float_headers = ['STDA', 'ATA', 'ATA_Re', 'ATA_Pr']
         self.headers = self.integer_headers + self.float_headers
-        self.additive_headers = ['VACE_IDs', 'VACE_GT_IDs', 'STDA']
         self.summary_headers = ['ATA', 'ATA_Re', 'ATA_Pr']
         self.register_headers_globally()
+
+        # Fields that are accumulated over multiple videos.
+        self._additive_headers = self.integer_headers + ['STDA']
 
         self.threshold = 0.5
 
@@ -39,24 +41,27 @@ class VACE(_BaseMetric):
             data['similarity_scores']
         """
         res = {}
-        for header in self.headers:
-            res[header] = 0
 
         # Obtain counts necessary to compute temporal IOU.
-        overlap_count = np.zeros((data['num_gt_ids'], data['num_tracker_ids']))
-        union_count = np.zeros((data['num_gt_ids'], data['num_tracker_ids']))
+        # Assume that integer counts can be represented exactly as floats.
+        potential_matches_count = np.zeros((data['num_gt_ids'], data['num_tracker_ids']))
+        gt_id_count = np.zeros(data['num_gt_ids'])
+        tracker_id_count = np.zeros(data['num_tracker_ids'])
+        both_present_count = np.zeros((data['num_gt_ids'], data['num_tracker_ids']))
         for t, (gt_ids_t, tracker_ids_t) in enumerate(zip(data['gt_ids'], data['tracker_ids'])):
+            # Count the number of frames in which two tracks satisfy the overlap criterion.
             matches_mask = np.greater_equal(data['similarity_scores'][t], self.threshold)
             match_idx_gt, match_idx_tracker = np.nonzero(matches_mask)
-            overlap_count[gt_ids_t[match_idx_gt], tracker_ids_t[match_idx_tracker]] += 1
-            gt_mask = np.zeros(data['num_gt_ids'])
-            gt_mask[gt_ids_t] = 1
-            tracker_mask = np.zeros(data['num_tracker_ids'])
-            tracker_mask[tracker_ids_t] = 1
-            union_count += np.logical_or(gt_mask[:, None], tracker_mask[None, :])
+            potential_matches_count[gt_ids_t[match_idx_gt], tracker_ids_t[match_idx_tracker]] += 1
+            # Count the number of frames in which the tracks are present.
+            gt_id_count[gt_ids_t] += 1
+            tracker_id_count[tracker_ids_t] += 1
+            both_present_count[gt_ids_t[:, None], tracker_ids_t[None, :]] += 1
+        # Number of frames in which either track is present (the union of the two sets of frames).
+        union_count = (gt_id_count[:, None] + tracker_id_count[None, :] - both_present_count)
         # The denominator should always be non-zero if all tracks are non-empty.
         with np.errstate(divide='raise', invalid='raise'):
-            temporal_iou = overlap_count / union_count
+            temporal_iou = potential_matches_count / union_count
 
         # Find assignment that maximizes temporal IOU.
         match_rows, match_cols = linear_sum_assignment(-temporal_iou)
@@ -65,19 +70,19 @@ class VACE(_BaseMetric):
         res['STDA'] = temporal_iou[match_rows, match_cols].sum()
         res['VACE_IDs'] = data['num_tracker_ids']
         res['VACE_GT_IDs'] = data['num_gt_ids']
-        res.update(_finalize(res))
+        res.update(_compute_final_fields(res))
         return res
 
     def combine_sequences(self, all_res):
         """Combines metrics across all sequences"""
         res = {}
-        for header in self.additive_headers:
+        for header in self._additive_headers:
             res[header] = _BaseMetric._combine_sum(all_res, header)
-        res.update(_finalize(res))
+        res.update(_compute_final_fields(res))
         return res
 
 
-def _finalize(additive):
+def _compute_final_fields(additive):
     final = {}
     final['ATA_Pr'] = additive['STDA'] / additive['VACE_IDs']
     final['ATA_Re'] = additive['STDA'] / additive['VACE_GT_IDs']
