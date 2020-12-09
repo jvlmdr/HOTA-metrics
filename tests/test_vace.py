@@ -5,7 +5,7 @@ import pytest
 metric = hm.metrics.vace.VACE()
 
 
-def test_ata_2x4():
+def test_vace_2x4():
     data = {
             'num_gt_ids': 2,
             'num_tracker_ids': 4,
@@ -49,7 +49,7 @@ def test_ata_2x4():
     assert res['STDA'] == pytest.approx(7 / 6)
     assert res['ATA'] == pytest.approx((7 / 6) / (0.5 * (2 + 4)))
 
-    # Total optimal spatial IOU in each frame:
+    # Total optimal spatial overlap in each frame:
     # [2, 1, 1]
     # FDA per frame:
     # 2 / ((2 + 3) / 2) = 4 / 5
@@ -62,7 +62,7 @@ def test_ata_2x4():
     assert res['SFDA'] == pytest.approx(59 / 90)
 
 
-def test_ata_empty():
+def test_vace_empty():
     num_frames = 3
     data = {
             'num_gt_ids': 0,
