@@ -12,7 +12,7 @@ class Det(_BaseMetric):
     The array-valued metrics use confidence-based matching and are parameterized by recall.
     """
 
-    def __init__(self):
+    def __init__(self, config=None):
         super().__init__()
         self.plottable = True
         self.array_labels = self._get_array_labels()
