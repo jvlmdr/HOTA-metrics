@@ -17,7 +17,7 @@ class Det(_BaseMetric):
         self.plottable = True
         self.array_labels = self._get_array_labels()
         self.integer_fields = ['Det_Frames', 'Det_TP', 'Det_FP', 'Det_FN']
-        self.float_fields = ['Det_AP', 'Det_AP_coarse', 'Det_AP_legacy',
+        self.float_fields = ['Det_AP', 'Det_AP_legacy',
                              'Det_MODA', 'Det_MODP', 'Det_MODP_sum', 'Det_FAF',
                              'Det_Re', 'Det_Pr', 'Det_F1',
                              'Det_num_gt_dets']
@@ -109,8 +109,6 @@ class Det(_BaseMetric):
                 res['Det_num_gt_dets'], res['Det_scores'], res['Det_correct'],
                 cls._get_array_labels())
 
-        # TODO: Remove after comparison.
-        res['Det_AP_coarse'] = np.trapz(res['Det_PrAtRe'][::10], dx=0.1)
         pr_at_re_legacy = _find_prec_at_recall(
                 res['Det_num_gt_dets'], res['Det_scores'], res['Det_correct'],
                 cls._get_array_labels())
@@ -209,17 +207,16 @@ def _match_by_score(confidence, similarity, similarity_threshold):
     return pr_matched
 
 
-# TODO: Remove after testing.
 def _find_prec_at_recall(num_gt, scores, correct, thresholds):
     """Computes precision at max score threshold to achieve recall.
+
+    Used for legacy AP metric.
 
     Args:
         num_gt: Number of ground-truth elements.
         scores: Score of each prediction.
         correct: Whether or not each prediction is correct.
         thresholds: Recall thresholds at which to evaluate.
-
-    Follows implementation from Piotr Dollar toolbox (used by Matlab devkit).
     """
     # Sort descending by score.
     order = np.argsort(-scores)
@@ -272,7 +269,7 @@ def _compute_average_precision(num_gt, scores, correct):
 
 
 def _prec_recall_curve(num_gt, scores, correct):
-    # TODO: Test this code.
+    # TODO: Add unit test for this code.
     # Sort descending by score.
     order = np.argsort(-scores)
     scores = scores[order]
