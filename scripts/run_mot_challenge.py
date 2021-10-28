@@ -41,6 +41,14 @@ from multiprocessing import freeze_support
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import trackeval  # noqa: E402
 
+METRICS = [
+        trackeval.metrics.HOTA,
+        trackeval.metrics.CLEAR,
+        trackeval.metrics.Identity,
+        trackeval.metrics.VACE,
+        trackeval.metrics.Confusion,
+]
+
 if __name__ == '__main__':
     freeze_support()
 
@@ -83,7 +91,7 @@ if __name__ == '__main__':
     evaluator = trackeval.Evaluator(eval_config)
     dataset_list = [trackeval.datasets.MotChallenge2DBox(dataset_config)]
     metrics_list = []
-    for metric in [trackeval.metrics.HOTA, trackeval.metrics.CLEAR, trackeval.metrics.Identity, trackeval.metrics.VACE]:
+    for metric in METRICS:
         if metric.get_name() in metrics_config['METRICS']:
             metrics_list.append(metric(metrics_config))
     if len(metrics_list) == 0:
