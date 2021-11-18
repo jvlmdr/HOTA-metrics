@@ -8,7 +8,7 @@ from ._base_metric import _BaseMetric
 from .. import _timing
 from .. import utils
 
-_METRICS_OVER_TP = ['sqr', 'rms', 'max']
+_METRICS_OVER_TP = ['sqr', 'rms', 'max']  # 'pair'
 _METRICS_WITH_DIVISOR = ['ent', 'rand']
 
 
@@ -26,9 +26,9 @@ class Confusion(_BaseMetric):
 
     def __init__(self, config=None):
         super().__init__()
-        self.integer_fields = ['Ass_present']
+        self.integer_fields = ['Ass_present', 'Id_correct']
         self.float_fields = sum([
-            ['AssJ_correct', 'AssJ'],
+            ['AssJ_correct', 'AssJ', 'IdA'],
             *[[f'AssRe_correct_{v}', f'AssPr_correct_{v}']
               for v in _METRICS_OVER_TP + _METRICS_WITH_DIVISOR],
             *[[f'AssRe_present_{v}', f'AssPr_present_{v}']
@@ -43,7 +43,7 @@ class Confusion(_BaseMetric):
               for v in _METRICS_OVER_TP + _METRICS_WITH_DIVISOR],
         ], [])
         self.summed_fields = sum([
-            ['Ass_present', 'AssJ_correct'],
+            ['Ass_present', 'AssJ_correct', 'Id_correct'],
             *[[f'AssRe_correct_{v}', f'AssPr_correct_{v}']
               for v in _METRICS_OVER_TP + _METRICS_WITH_DIVISOR],
             *[[f'AssRe_present_{v}', f'AssPr_present_{v}']
@@ -59,7 +59,15 @@ class Confusion(_BaseMetric):
         """Calculates confusion metrics for one sequence"""
         matches = _find_match_sequence(data, threshold=self.threshold)
         counts_dict = collections.Counter(itertools.chain.from_iterable(matches))
-        counts = _to_dense(data['num_gt_ids'], data['num_tracker_ids'], counts_dict, dtype=float)
+        unique_gt_ids = set(gt_id for gt_id, _ in counts_dict)
+        unique_tracker_ids = set(tracker_id for _, tracker_id in counts_dict)
+        return self.eval_sequence_from_counts(
+            max(unique_gt_ids) + 1, max(unique_tracker_ids) + 1, counts_dict)
+
+    @_timing.time
+    def eval_sequence_from_counts(self, num_gt_ids, num_tracker_ids, counts_dict):
+        """Calculates confusion metrics for one sequence"""
+        counts = _to_dense(num_gt_ids, num_tracker_ids, counts_dict, dtype=int)
 
         with np.errstate(all='raise'):
             res = {}
@@ -73,6 +81,7 @@ class Confusion(_BaseMetric):
                 res[f'AssRe_correct_{v}'], res[f'AssRe_present_{v}'] = correct_fn(counts, axis=1)
                 res[f'AssPr_correct_{v}'], res[f'AssPr_present_{v}'] = correct_fn(counts, axis=0)
             res['AssJ_correct'] = correct_jac(counts)
+            res['Id_correct'] = correct_id(counts)
 
         res = self._compute_final_fields(res)
         return res
@@ -102,7 +111,9 @@ class Confusion(_BaseMetric):
 
         This function is used both for both per-sequence calculation, and in combining values across sequences.
         """
+        res = dict(res)
         res['AssJ'] = res['AssJ_correct'] / res['Ass_present']
+        res['IdA'] = res['Id_correct'] / res['Ass_present']
         for v in _METRICS_OVER_TP:
             res[f'AssRe_{v}'] = res[f'AssRe_correct_{v}'] / res['Ass_present']
             res[f'AssPr_{v}'] = res[f'AssPr_correct_{v}'] / res['Ass_present']
@@ -158,6 +169,12 @@ def correct_max(counts, axis):
     return np.sum(correct)
 
 
+def correct_id(counts):
+    opt_rows, opt_cols = linear_sum_assignment(-counts.astype(float))
+    idtp = counts[opt_rows, opt_cols].sum()
+    return idtp
+
+
 def correct_sqr(counts, axis):
     totals = np.sum(counts, axis=axis, keepdims=True)
     with np.errstate(invalid='ignore'):
@@ -189,7 +206,7 @@ def correct_pair(counts, axis):
 def correct_ent(counts, axis):
     totals = np.sum(counts, axis=axis, keepdims=True)
     with np.errstate(invalid='ignore'):
-        cond_prob = np.where(totals == 0, 0., counts / totals)
+        cond_prob = np.where(totals == 0, 0., np.true_divide(counts, totals))
     cond_ent = np.sum(np.where(totals == 0, 0., _xlogx(cond_prob)),
                       axis=axis, keepdims=True)
     # Take expectation of entropy over reference tracks.
@@ -230,9 +247,9 @@ _CORRECT_FNS = {
         'max': correct_max,
         'sqr': correct_sqr,
         'rms': correct_rms,
+        'pair': correct_pair,
         'ent': correct_ent,
         'rand': correct_rand,
-        # 'pair': correct_pair,
 }
 
 
