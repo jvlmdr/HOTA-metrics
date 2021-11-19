@@ -46,7 +46,6 @@ class VACE(_BaseMetric):
         potential_matches_count = np.zeros((data['num_gt_ids'], data['num_tracker_ids']))
         gt_id_count = np.zeros(data['num_gt_ids'])
         tracker_id_count = np.zeros(data['num_tracker_ids'])
-        both_present_count = np.zeros((data['num_gt_ids'], data['num_tracker_ids']))
         for t, (gt_ids_t, tracker_ids_t) in enumerate(zip(data['gt_ids'], data['tracker_ids'])):
             # Count the number of frames in which two tracks satisfy the overlap criterion.
             matches_mask = np.greater_equal(data['similarity_scores'][t], self.threshold)
@@ -55,11 +54,9 @@ class VACE(_BaseMetric):
             # Count the number of frames in which the tracks are present.
             gt_id_count[gt_ids_t] += 1
             tracker_id_count[tracker_ids_t] += 1
-            both_present_count[gt_ids_t[:, np.newaxis], tracker_ids_t[np.newaxis, :]] += 1
-        # Number of frames in which either track is present (union of the two sets of frames).
         union_count = (gt_id_count[:, np.newaxis]
                        + tracker_id_count[np.newaxis, :]
-                       - both_present_count)
+                       - potential_matches_count)
         # The denominator should always be non-zero if all tracks are non-empty.
         with np.errstate(divide='raise', invalid='raise'):
             temporal_iou = potential_matches_count / union_count
