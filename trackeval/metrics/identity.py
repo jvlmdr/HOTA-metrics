@@ -35,6 +35,7 @@ class Identity(_BaseMetric):
             'IDR_error_det', 'IDR_error_ass',
             'IDP_error_det', 'IDP_error_ass',
             'IDF1_error_det', 'IDF1_error_ass',
+            'IDA', 'ID_DetF1',
         ]
 
         self.integer_fields = self.integer_fields_base
@@ -184,6 +185,9 @@ class Identity(_BaseMetric):
             res['IDP_error_ass'] = res['IDP_error_ass_merge'] + res['IDP_error_ass_split']
             res['IDF1_error_det'] = res['IDF1_error_det_fn'] + res['IDF1_error_det_fp']
             res['IDF1_error_ass'] = res['IDF1_error_ass_split'] + res['IDF1_error_ass_merge']
+
+            res['ID_DetF1'] = res['ID_det'] / (0.5 * (res['ID_gt_count'] + res['ID_tracker_count']))
+            res['IDA'] = res['IDTP'] / res['ID_det']
 
         return res
 
