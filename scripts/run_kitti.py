@@ -79,9 +79,10 @@ if __name__ == '__main__':
     evaluator = trackeval.Evaluator(eval_config)
     dataset_list = [trackeval.datasets.Kitti2DBox(dataset_config)]
     metrics_list = []
-    for metric in [trackeval.metrics.HOTA, trackeval.metrics.CLEAR, trackeval.metrics.Identity]:
+    for metric in [trackeval.metrics.HOTA, trackeval.metrics.CLEAR, trackeval.metrics.Identity,
+                   trackeval.metrics.Local]:
         if metric.get_name() in metrics_config['METRICS']:
-            metrics_list.append(metric())
+            metrics_list.append(metric(metrics_config))
     if len(metrics_list) == 0:
         raise Exception('No metrics selected for evaluation')
     evaluator.evaluate(dataset_list, metrics_list)
